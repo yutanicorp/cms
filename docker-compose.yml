@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  api-translation-service:
+    build:
+      context: ./api-translation
+      dockerfile: Dockerfile
+    container_name: api-translation-service
+    command: python api_translation.py
+    ports:
+      - "7000:7000"
+    stop_grace_period: 3s
+
+  api-scoring-service:
+    build:
+      context: ./api-scoring
+      dockerfile: Dockerfile
+    container_name: api-scoring-service
+    command: python api_scoring.py
+    ports:
+      - "8000:8000"
+    stop_grace_period: 3s
+
+  user-flag-app-service:
+    build:
+      context: ./user-flag-app
+      dockerfile: Dockerfile
+    container_name: user-flag-app-service
+    command: python user_flag_app.py -I /input-files/input.csv -O /output-files/output.csv
+    ports:
+      - "9000:9000"
+    volumes:
+      - type: bind
+        read_only: true
+        source: ./input-files
+        target: /input-files
+      - type: bind
+        read_only: true
+        source: ./output-files
+        target: /output-files
+    depends_on:
+      - api-scoring-service
+      - api-translation-service
+    stop_grace_period: 3s
