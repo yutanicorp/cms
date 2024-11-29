@@ -9,7 +9,7 @@ services:
     command: python api_translation.py
     ports:
       - "7000:7000"
-    stop_grace_period: 3s
+    stop_grace_period: 2s
 
   api-scoring-service:
     build:
@@ -19,14 +19,14 @@ services:
     command: python api_scoring.py
     ports:
       - "8000:8000"
-    stop_grace_period: 3s
+    stop_grace_period: 2s
 
   user-flag-app-service:
     build:
       context: ./user-flag-app
       dockerfile: Dockerfile
     container_name: user-flag-app-service
-    command: python user_flag_app.py -I /input-files/input.csv -O /output-files/output.csv
+    command: /bin/sh -c "python user_flag_app.py -I /input-files/input.csv -O /output-files/output.csv && sleep 100000"
     ports:
       - "9000:9000"
     volumes:
@@ -35,10 +35,16 @@ services:
         source: ./input-files
         target: /input-files
       - type: bind
-        read_only: true
+        read_only: false
         source: ./output-files
         target: /output-files
+      - type: volume
+        source: sqlite3
+        target: /sqlite
     depends_on:
       - api-scoring-service
       - api-translation-service
-    stop_grace_period: 3s
+    stop_grace_period: 2s
+
+volumes:
+  sqlite3:
