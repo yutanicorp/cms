@@ -61,6 +61,31 @@ __email__ = '''<account@single.blue>'''
 __status__ = '''Development'''  # "Prototype", "Development", "Production".
 
 
+def get_arguments():
+    """
+    Parse and return the command-line arguments for the script.
+
+    Returns:
+         argparse.Namespace: The parsed arguments from the command line.
+    """
+    # https://docs.python.org/3/library/argparse.html
+    parser = argparse.ArgumentParser(
+        description='''Content Moderation System (CMS) - The system scores comments to report users posting offensive content.''')
+    parser.add_argument('--input-file',
+                        '-I',
+                        help='The location of the input file',
+                        dest='input_file',
+                        action='store',
+                        default='')
+    parser.add_argument('--output-file',
+                        '-O',
+                        help='The location of the output file',
+                        dest='output_file',
+                        action='store',
+                        default='')
+    return parser.parse_args()
+
+
 class DatabaseManager:
 
     def __init__(self, db_path):
@@ -255,31 +280,6 @@ class ContentModerationSystem:
         result = self.db_manager.generate_user_statistics()
         self._write_output(output_file, result)
         self._logger.info(f"Process completed successfully. Output written to {output_file}.")
-
-
-def get_arguments():
-    """
-    Parse and return the command-line arguments for the script.
-
-    Returns:
-         argparse.Namespace: The parsed arguments from the command line.
-    """
-    # https://docs.python.org/3/library/argparse.html
-    parser = argparse.ArgumentParser(
-        description='''Content Moderation System (CMS) - The system scores comments to report users posting offensive content.''')
-    parser.add_argument('--input-file',
-                        '-I',
-                        help='The location of the input file',
-                        dest='input_file',
-                        action='store',
-                        default='')
-    parser.add_argument('--output-file',
-                        '-O',
-                        help='The location of the output file',
-                        dest='output_file',
-                        action='store',
-                        default='')
-    return parser.parse_args()
 
 
 def main():
