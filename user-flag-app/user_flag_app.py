@@ -287,6 +287,7 @@ class ContentModerationSystem:
         Returns:
             None
         """
+        self._logger.info(f"Starting to process the input file {input_file}.")
         for row in self._get_input(input_file):
             self._process_message(row)
         result = self.db_manager.generate_user_statistics()
