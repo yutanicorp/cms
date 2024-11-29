@@ -99,18 +99,22 @@ class DatabaseManager:
         Returns:
             None
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS user_activity (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
-                    translated_message TEXT,
-                    calculated_score REAL
-                )
-            ''')
-            cursor.execute('DELETE FROM user_activity')
-            conn.commit()
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS user_activity (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER,
+                        translated_message TEXT,
+                        calculated_score REAL
+                    )
+                ''')
+                cursor.execute('DELETE FROM user_activity')
+                conn.commit()
+        except sqlite3.DatabaseError as e:
+            self._logger.error(f"Database error occurred: {e}")
+            raise SystemExit(1)
 
     def store_user_activity(self, user_id, translated_message, calculated_score):
         """
@@ -124,15 +128,18 @@ class DatabaseManager:
         Returns:
             None
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO user_activity (user_id, translated_message, calculated_score)
-                VALUES (?, ?, ?)
-            ''', (user_id, translated_message, calculated_score))
-            conn.commit()
-        self._logger.debug(f"Stored activity for user_id: {user_id}, score: {calculated_score}.")
-
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO user_activity (user_id, translated_message, calculated_score)
+                    VALUES (?, ?, ?)
+                ''', (user_id, translated_message, calculated_score))
+                conn.commit()
+            self._logger.debug(f"Stored activity for user_id: {user_id}, score: {calculated_score}.")
+        except sqlite3.DatabaseError as e:
+            self._logger.error(f"Database error occurred: {e}")
+            raise SystemExit(1)
 
     def generate_user_statistics(self):
         """Generate user statistics from the database.
@@ -145,14 +152,18 @@ class DatabaseManager:
             (42432992, 1, 0.5374862315762217),
             (73829111, 1, 0.9470547559483797)]
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT user_id, '
-                           'count(translated_message) as total_messages, '
-                           'avg(calculated_score) as avg_score '
-                           'FROM user_activity '
-                           'GROUP BY user_id')
-            return cursor.fetchall()
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT user_id, '
+                               'count(translated_message) as total_messages, '
+                               'avg(calculated_score) as avg_score '
+                               'FROM user_activity '
+                               'GROUP BY user_id')
+                return cursor.fetchall()
+        except sqlite3.DatabaseError as e:
+            self._logger.error(f"Database error occurred: {e}")
+            raise SystemExit(1)
 
 
 class ContentModerationSystem:
@@ -206,7 +217,7 @@ class ContentModerationSystem:
             return response.json()
         except requests.RequestException as e:
             self._logger.error(f"Error querying the service {url}: {e}")
-            return None
+            raise SystemExit(1)
 
     def _process_message(self, row):
         """
@@ -263,6 +274,7 @@ class ContentModerationSystem:
                               f"Total records: {len(converted_data)}.")
         except IOError as e:
             self._logger.error(f"Error writing to output file {file}: {e}")
+            raise SystemExit(1)
 
     def process(self, input_file, output_file):
         """
@@ -289,19 +301,23 @@ def main():
     Processes input files containing user messages, scores them via API services,
     stores the results, performs analytics, and writes the output to a file.
     """
-    args = get_arguments()
-    missing_file_args = [
-        not args.input_file,
-        not args.output_file,
-    ]
-    if any(missing_file_args):
+    try:
+        args = get_arguments()
+        missing_file_args = [
+            not args.input_file,
+            not args.output_file,
+        ]
+        if any(missing_file_args):
+            raise SystemExit(1)
+
+        db_manager = DatabaseManager(DB_PATH)
+        db_manager.initialize()
+
+        cms = ContentModerationSystem(db_manager)
+        cms.process(args.input_file, args.output_file)
+    except Exception as e:
+        LOGGER.error(f"An unknown error occurred: {e}")
         raise SystemExit(1)
-
-    db_manager = DatabaseManager(DB_PATH)
-    db_manager.initialize()
-
-    cms = ContentModerationSystem(db_manager)
-    cms.process(args.input_file, args.output_file)
 
 
 if __name__ == "__main__":
