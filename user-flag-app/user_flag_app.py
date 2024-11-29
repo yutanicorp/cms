@@ -52,7 +52,15 @@ __status__ = '''Development'''  # "Prototype", "Development", "Production".
 
 
 def initialize_db():
-    """Initialize the database by creating the 'user_activity' table."""
+    """
+    Initialize the database by creating the 'user_activity' table.
+
+    Arguments:
+        None
+
+    Returns:
+        None
+    """
     with sqlite3.connect('/sqlite/cms.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -98,6 +106,12 @@ def get_arguments():
 def get_input(file):
     """Read input data from a CSV file as a generator.
 
+    Arguments:
+        file (str): The path to the CSV file to be read.
+
+    Returns:
+        generator: Yields each row from the CSV file as a dictionary.
+
     Example:
         [
             {'user_id': '28391029', 'message': 'You are a fool'},
@@ -118,7 +132,16 @@ def get_input(file):
 
 
 def query_translation_service(message):
-    """Send a message to the translation API and return the response."""
+    """
+    Send a message to the translation API and return the response.
+
+    Arguments:
+        message (str): The message to be sent to the translation service.
+
+    Returns:
+        dict or None: The JSON response from the translation service if successful;
+                      None if an error occurs.
+    """
     payload = {"message": message}
     headers = {"Content-Type": "application/json"}
 
@@ -131,7 +154,16 @@ def query_translation_service(message):
 
 
 def query_scoring_service(message):
-    """Send a message to the scoring API and return the response."""
+    """
+    Send a message to the scoring API and return the response.
+
+    Arguments:
+        message (str): The message to be sent to the scoring service.
+
+    Returns:
+        dict or None: The JSON response from the scoring service if successful;
+                      None if an error occurs.
+    """
     payload = {"message": message}
     headers = {"Content-Type": "application/json"}
 
@@ -144,7 +176,17 @@ def query_scoring_service(message):
 
 
 def store_user_activity(user_id, translated_message, calculated_score):
-    """Store user and associated message into the SQLite3 database."""
+    """
+    Store user activity into the SQLite3 database.
+
+    Arguments:
+        user_id (int): User's ID.
+        translated_message (str): Translated message.
+        calculated_score (float): Message score.
+
+    Returns:
+        None
+    """
     with sqlite3.connect('/sqlite/cms.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -155,7 +197,12 @@ def store_user_activity(user_id, translated_message, calculated_score):
 
 
 def fetch_user_activity():
-    """Fetch and display all user activity records."""
+    """
+    Fetch and display all user activity records.
+
+    Returns:
+        None
+    """
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM user_activity')
@@ -165,7 +212,15 @@ def fetch_user_activity():
 
 
 def process_message(row):
-    """Process each message row by translating, scoring, and storing."""
+    """
+    Process each message row by translating, scoring, and storing.
+
+    Arguments:
+        row (dict): A dictionary containing 'user_id' and 'message', as provided in input file.
+
+    Returns:
+        None
+    """
     user_id = int(row['user_id'])
 
     # Translate message
@@ -182,6 +237,9 @@ def process_message(row):
 
 def generate_user_statistics():
     """Generate user statistics from the database.
+
+    Returns:
+        list of tuples: Each tuple contains user_id, total_messages, avg_score.
 
     Example:
         [(28391029, 2, 0.30724699136956457),
@@ -200,7 +258,17 @@ def generate_user_statistics():
 
 
 def write_output(file, data):
-    """Write the processed data to a CSV file."""
+    """
+    Write the processed data to a CSV file.
+
+     Arguments:
+        file (str): The filepath where the CSV will be saved.
+        data (list of tuples): The processed data to be written, each tuple contains
+                               (user_id, total_messages, avg_score).
+
+    Returns:
+        None
+    """
     converted_data = [
         {'user_id': user_id,
          'total_messages': total_messages,
