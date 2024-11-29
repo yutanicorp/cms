@@ -21,9 +21,10 @@
 #  DEALINGS IN THE SOFTWARE.
 #
 
-import sqlite3
-import csv
 import argparse
+import csv
+import logging.config
+import sqlite3
 import requests
 
 # Constants for Service URLs
@@ -32,6 +33,15 @@ SCORING_SERVICE_URL = "http://api-scoring-service:8000"
 
 # SQLite Database Path
 DB_PATH = '/sqlite/cms.db'
+
+# Configure logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S'
+                    )
+LOGGER = logging.getLogger()
+LOGGER_BASENAME = 'CMSLogger'
+
 
 """
 Main code for Content Moderation System (CMS).
@@ -55,6 +65,7 @@ class DatabaseManager:
 
     def __init__(self, db_path):
         self.db_path = db_path
+        self._logger = logging.getLogger(f'{LOGGER_BASENAME}.{self.__class__.__name__}')
 
     def initialize(self):
         """
@@ -95,6 +106,8 @@ class DatabaseManager:
                 VALUES (?, ?, ?)
             ''', (user_id, translated_message, calculated_score))
             conn.commit()
+        self._logger.debug(f"Stored activity for user_id: {user_id}, score: {calculated_score}.")
+
 
     def generate_user_statistics(self):
         """Generate user statistics from the database.
@@ -120,6 +133,7 @@ class DatabaseManager:
 class ContentModerationSystem:
     def __init__(self, db_manager):
         self.db_manager = db_manager
+        self._logger = logging.getLogger(f'{LOGGER_BASENAME}.{self.__class__.__name__}')
 
     def _get_input(self, file):
         """Read input data from a CSV file as a generator.
@@ -142,8 +156,9 @@ class ContentModerationSystem:
                 csv_reader = csv.DictReader(csv_file)
                 for row in csv_reader:
                     yield row
+                self._logger.debug(f"Finished reading the input file: {file}")
         except IOError as e:
-            print(f"Error reading the input file {file}: {e}")
+            self._logger.error(f"Error reading the input file {file}: {e}")
             raise SystemExit(1)
 
     def _query_service(self, message, url):
@@ -162,9 +177,10 @@ class ContentModerationSystem:
         headers = {"Content-Type": "application/json"}
         try:
             response = requests.post(url, json=payload, headers=headers)
+            self._logger.debug(f"Received response: {response} from {url}")
             return response.json()
         except requests.RequestException as e:
-            print(f"Error querying the service {url}: {e}")
+            self._logger.error(f"Error querying the service {url}: {e}")
             return None
 
     def _process_message(self, row):
@@ -178,13 +194,20 @@ class ContentModerationSystem:
             None
         """
         user_id = int(row['user_id'])
+
+        # Translating the message
         translated_data = self._query_service(row['message'], TRANSLATION_SERVICE_URL)
         translated_message = translated_data.get('translated_message', '')
+        self._logger.debug(f"Successfully translated message for user_id: {user_id}")
 
+        # Scoring the translated message
         score_data = self._query_service(translated_message, SCORING_SERVICE_URL)
         score = score_data.get('score', 0.0)
+        self._logger.debug(f"Calculated score for user_id: {user_id} is {score}")
 
+        # Storing the user activity
         self.db_manager.store_user_activity(user_id, translated_message, score)
+        self._logger.debug(f"Activity stored for user_id: {user_id}")
 
     def _write_output(self, file, data):
         """
@@ -211,9 +234,10 @@ class ContentModerationSystem:
                 writer.writeheader()
                 for row_dict in converted_data:
                     writer.writerow(row_dict)
-            print(f"Data successfully written to {file}.")
+            self._logger.debug(f"Data successfully written to {file}. "
+                              f"Total records: {len(converted_data)}.")
         except IOError as e:
-            print(f"Error writing to output file {file}: {e}")
+            self._logger.error(f"Error writing to output file {file}: {e}")
 
     def process(self, input_file, output_file):
         """
@@ -230,6 +254,7 @@ class ContentModerationSystem:
             self._process_message(row)
         result = self.db_manager.generate_user_statistics()
         self._write_output(output_file, result)
+        self._logger.info(f"Process completed successfully. Output written to {output_file}.")
 
 
 def get_arguments():

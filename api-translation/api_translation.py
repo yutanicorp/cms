@@ -25,6 +25,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import time
 import random
+import logging.config
+
+# Configure logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S'
+                    )
+LOGGER = logging.getLogger()
 
 """
 Main code for Content Moderation System (CMS).
@@ -94,7 +102,7 @@ def run(server_class=ThreadingHTTPServer, handler_class=RequestHandler, host=HOS
     """Run the HTTP server."""
     server_address = (host, port)
     httpd = server_class(server_address, handler_class)
-    print(f'Starting server on port {port}...')
+    LOGGER.info(f'Starting translation server on port {port}...')
     httpd.serve_forever()
 
 
