@@ -24,6 +24,7 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import random
+import time
 
 """
 Main code for Content Moderation System (CMS).
@@ -42,8 +43,9 @@ __maintainer__ = '''Vincent Schouten'''
 __email__ = '''<account@single.blue>'''
 __status__ = '''Development'''  # "Prototype", "Development", "Production".
 
-
+# Constants for the HTTP server
 PORT = 8000
+HOST = ''
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -56,8 +58,13 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         try:
             data = json.loads(post_data)
-            text = data.get('message', '')
-            score = scoring(text)
+            message = data.get('message', '')
+
+            # Simulate network latency
+            latency = random.uniform(0.05, 0.2)
+            time.sleep(latency)
+
+            score = calculate_offense_score(message)
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -74,14 +81,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response).encode())
 
 
-def scoring(text):
+def calculate_offense_score(text):
     """Calculate a random score for a given text message."""
     return random.uniform(0, 1)
 
 
-def run(server_class=ThreadingHTTPServer, handler_class=RequestHandler, port=PORT):
+def run(server_class=ThreadingHTTPServer, handler_class=RequestHandler, host=HOST, port=PORT):
     """Run the HTTP server."""
-    server_address = ('', port)
+    server_address = (host, port)
     httpd = server_class(server_address, handler_class)
     print(f'Starting server on port {port}...')
     httpd.serve_forever()
