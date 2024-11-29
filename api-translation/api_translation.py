@@ -23,6 +23,8 @@
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import time
+import random
 
 """
 Main code for Content Moderation System (CMS).
@@ -41,7 +43,7 @@ __maintainer__ = '''Vincent Schouten'''
 __email__ = '''<account@single.blue>'''
 __status__ = '''Development'''  # "Prototype", "Development", "Production".
 
-
+# Constants for the HTTP server
 PORT = 7000
 HOST = ''
 
@@ -50,14 +52,23 @@ class RequestHandler(BaseHTTPRequestHandler):
     """Handles HTTP POST requests to the server."""
 
     def do_POST(self):
-        """Handle POST request method."""
+        """Handle POST request method.
+
+        Returns:
+            {'translated_message': 'This looks like a delicious cake!'}
+        """
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
 
         try:
             data = json.loads(post_data)
             text = data.get('message', '')
-            translated_text = translation(text)
+
+            # Simulate network latency
+            latency = random.uniform(0.05, 0.2)
+            time.sleep(latency)
+
+            translated_text = translate_text(text)
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
@@ -74,7 +85,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response).encode())
 
 
-def translation(text):
+def translate_text(text):
     """Dummy translation function."""
     return text
 
