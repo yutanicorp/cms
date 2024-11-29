@@ -51,30 +51,185 @@ __email__ = '''<account@single.blue>'''
 __status__ = '''Development'''  # "Prototype", "Development", "Production".
 
 
-def initialize_db():
-    """
-    Initialize the database by creating the 'user_activity' table.
+class DatabaseManager:
 
-    Arguments:
-        None
+    def __init__(self, db_path):
+        self.db_path = db_path
 
-    Returns:
-        None
-    """
-    with sqlite3.connect('/sqlite/cms.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS user_activity (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                translated_message TEXT,
-                calculated_score REAL
-            )
-        ''')
-        cursor.execute('''
-            DELETE FROM user_activity;
-        ''')
-        conn.commit()
+    def initialize(self):
+        """
+        Create the 'user_activity' table.
+
+        Returns:
+            None
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_activity (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    translated_message TEXT,
+                    calculated_score REAL
+                )
+            ''')
+            cursor.execute('DELETE FROM user_activity')
+            conn.commit()
+
+    def store_user_activity(self, user_id, translated_message, calculated_score):
+        """
+        Store user activity into the SQLite3 database.
+
+        Arguments:
+            user_id (int): User's ID.
+            translated_message (str): The translated message.
+            calculated_score (float): Scote of the message.
+
+        Returns:
+            None
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO user_activity (user_id, translated_message, calculated_score)
+                VALUES (?, ?, ?)
+            ''', (user_id, translated_message, calculated_score))
+            conn.commit()
+
+    def generate_user_statistics(self):
+        """Generate user statistics from the database.
+
+        Returns:
+            list of tuples: Each tuple contains user_id, total_messages, avg_score.
+
+        Example:
+            [(28391029, 2, 0.30724699136956457),
+            (42432992, 1, 0.5374862315762217),
+            (73829111, 1, 0.9470547559483797)]
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT user_id, '
+                           'count(translated_message) as total_messages, '
+                           'avg(calculated_score) as avg_score '
+                           'FROM user_activity '
+                           'GROUP BY user_id')
+            return cursor.fetchall()
+
+
+class ContentModerationSystem:
+    def __init__(self, db_manager):
+        self.db_manager = db_manager
+
+    def get_input(self, file):
+        """Read input data from a CSV file as a generator.
+
+        Arguments:
+            file (str): The path to the CSV file to be read.
+
+        Returns:
+            generator: Yields each row from the CSV file as a dictionary.
+
+        Example:
+            [
+                {'user_id': '28391029', 'message': 'You are a fool'},
+                {'user_id': '28391029', 'message': 'This looks like a delicious cake'},
+                {'user_id': '73829111', 'message': 'Completely bonkers!'}
+            ]
+        """
+        try:
+            with open(file, 'r', encoding='utf-8') as csv_file:
+                csv_reader = csv.DictReader(csv_file)
+                for row in csv_reader:
+                    yield row
+        except IOError as e:
+            print(f"Error reading the input file {file}: {e}")
+            raise SystemExit(1)
+
+    def query_service(self, message, url):
+        """
+        Send a message to the translation or scoring API and return the response.
+
+        Arguments:
+            message (str): The message to be sent to the translation service.
+            url (str): API endpoint URL
+
+        Returns:
+            dict or None: The JSON response from the translation service if successful;
+                          None if an error occurs.
+        """
+        payload = {"message": message}
+        headers = {"Content-Type": "application/json"}
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            return response.json()
+        except requests.RequestException as e:
+            print(f"Error querying the service {url}: {e}")
+            return None
+
+    def process_message(self, row):
+        """
+        Process each message row by translating, scoring, and storing.
+
+        Arguments:
+            row (dict): A dictionary containing 'user_id' and 'message', as provided in input file.
+
+        Returns:
+            None
+        """
+        user_id = int(row['user_id'])
+        translated_data = self.query_service(row['message'], TRANSLATION_SERVICE_URL)
+        translated_message = translated_data.get('translated_message', '')
+
+        score_data = self.query_service(translated_message, SCORING_SERVICE_URL)
+        score = score_data.get('score', 0.0)
+
+        self.db_manager.store_user_activity(user_id, translated_message, score)
+
+    def write_output(self, file, data):
+        """
+        Write the processed data to a CSV file.
+
+         Arguments:
+            file (str): The filepath where the CSV will be saved.
+            data (list of tuples): The processed data to be written, each tuple contains
+                                   (user_id, total_messages, avg_score).
+
+        Returns:
+            None
+        """
+        converted_data = [
+            {'user_id': user_id,
+             'total_messages': total_messages,
+             'avg_score': avg_score}
+            for user_id, total_messages, avg_score in data
+        ]
+        try:
+            with open(file, 'w', newline='', encoding='utf-8') as csv_file:
+                fieldnames = ['user_id', 'total_messages', 'avg_score']
+                writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+                writer.writeheader()
+                for row_dict in converted_data:
+                    writer.writerow(row_dict)
+            print(f"Data successfully written to {file}.")
+        except IOError as e:
+            print(f"Error writing to output file {file}: {e}")
+
+    def process(self, input_file, output_file):
+        """
+        Write the processed data to a CSV file.
+
+         Arguments:
+            input_file (str): The file path where the input CSV is located.
+            output_file (str): The file path for the output CSV.
+
+        Returns:
+            None
+        """
+        for row in self.get_input(input_file):
+            self.process_message(row)
+        result = self.db_manager.generate_user_statistics()
+        self.write_output(output_file, result)
 
 
 def get_arguments():
@@ -99,203 +254,15 @@ def get_arguments():
                         dest='output_file',
                         action='store',
                         default='')
-    args = parser.parse_args()
-    return args
-
-
-def get_input(file):
-    """Read input data from a CSV file as a generator.
-
-    Arguments:
-        file (str): The path to the CSV file to be read.
-
-    Returns:
-        generator: Yields each row from the CSV file as a dictionary.
-
-    Example:
-        [
-            {'user_id': '28391029', 'message': 'You are a fool'},
-            {'user_id': '28391029', 'message': 'This looks like a delicious cake'},
-            {'user_id': '73829111', 'message': 'Completely bonkers!'}
-        ]
-    """
-    try:
-        with open(file, 'r', encoding='utf-8') as csv_file:
-            csv_reader = csv.DictReader(csv_file)
-            for row in csv_reader:
-                yield row
-    except IOError as e:
-        print(f"Error reading the input file {file}: {e}")
-        raise SystemExit(1)
-    except Exception as e:
-        print(e)
-
-
-def query_translation_service(message):
-    """
-    Send a message to the translation API and return the response.
-
-    Arguments:
-        message (str): The message to be sent to the translation service.
-
-    Returns:
-        dict or None: The JSON response from the translation service if successful;
-                      None if an error occurs.
-    """
-    payload = {"message": message}
-    headers = {"Content-Type": "application/json"}
-
-    try:
-        response = requests.post(TRANSLATION_SERVICE_URL, json=payload, headers=headers)
-        return response.json()
-    except requests.RequestException as e:
-        print(f"Error querying the translation service: {e}")
-        return None
-
-
-def query_scoring_service(message):
-    """
-    Send a message to the scoring API and return the response.
-
-    Arguments:
-        message (str): The message to be sent to the scoring service.
-
-    Returns:
-        dict or None: The JSON response from the scoring service if successful;
-                      None if an error occurs.
-    """
-    payload = {"message": message}
-    headers = {"Content-Type": "application/json"}
-
-    try:
-        response = requests.post(SCORING_SERVICE_URL, json=payload, headers=headers)
-        return response.json()
-    except requests.RequestException as e:
-        print(f"Error querying the translation service: {e}")
-        return None
-
-
-def store_user_activity(user_id, translated_message, calculated_score):
-    """
-    Store user activity into the SQLite3 database.
-
-    Arguments:
-        user_id (int): User's ID.
-        translated_message (str): Translated message.
-        calculated_score (float): Message score.
-
-    Returns:
-        None
-    """
-    with sqlite3.connect('/sqlite/cms.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO user_activity (user_id, translated_message, calculated_score)
-            VALUES (?, ?, ?)
-        ''', (user_id, translated_message, calculated_score))
-        conn.commit()
-
-
-def fetch_user_activity():
-    """
-    Fetch and display all user activity records.
-
-    Returns:
-        None
-    """
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM user_activity')
-        rows = cursor.fetchall()
-        for row in rows:
-            print(row)
-
-
-def process_message(row):
-    """
-    Process each message row by translating, scoring, and storing.
-
-    Arguments:
-        row (dict): A dictionary containing 'user_id' and 'message', as provided in input file.
-
-    Returns:
-        None
-    """
-    user_id = int(row['user_id'])
-
-    # Translate message
-    translated_data = query_translation_service(row['message'])
-    translated_message = translated_data.get('translated_message', '')
-
-    # Score message
-    score_data = query_scoring_service(translated_message)
-    score = score_data.get('score', 0.0)
-
-    # Store result
-    store_user_activity(user_id, translated_message, score)
-
-
-def generate_user_statistics():
-    """Generate user statistics from the database.
-
-    Returns:
-        list of tuples: Each tuple contains user_id, total_messages, avg_score.
-
-    Example:
-        [(28391029, 2, 0.30724699136956457),
-        (42432992, 1, 0.5374862315762217),
-        (73829111, 1, 0.9470547559483797)]
-    """
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT user_id as user_id,'
-                       'count(translated_message) as total_messages,'
-                       'avg(calculated_score) as avg_score '
-                       'FROM user_activity '
-                       'GROUP BY user_id ')
-        rows = cursor.fetchall()
-        return rows
-
-
-def write_output(file, data):
-    """
-    Write the processed data to a CSV file.
-
-     Arguments:
-        file (str): The filepath where the CSV will be saved.
-        data (list of tuples): The processed data to be written, each tuple contains
-                               (user_id, total_messages, avg_score).
-
-    Returns:
-        None
-    """
-    converted_data = [
-        {'user_id': user_id,
-         'total_messages': total_messages,
-         'avg_score': avg_score}
-        for user_id, total_messages, avg_score in data
-    ]
-    try:
-        with open(file, 'w', newline='', encoding='utf-8') as csv_file:
-            fieldnames = ['user_id', 'total_messages', 'avg_score']
-            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-
-            writer.writeheader()
-            for row_dict in converted_data:
-                writer.writerow(row_dict)
-
-        print(f"Data successfully written to {file}.")
-    except IOError as e:
-        print(f"Error writing to the output file {file}: {e}")
-    except Exception as e:
-        print(e)
+    return parser.parse_args()
 
 
 def main():
     """
     Main entry point for the Content Moderation System.
 
-    ............
+    Processes input files containing user messages, scores them via API services,
+    stores the results, performs analytics, and writes the output to a file.
     """
     args = get_arguments()
     missing_file_args = [
@@ -305,13 +272,12 @@ def main():
     if any(missing_file_args):
         raise SystemExit(1)
 
-    for row in get_input(args.input_file):
-        process_message(row)
+    db_manager = DatabaseManager(DB_PATH)
+    db_manager.initialize()
 
-    result = generate_user_statistics()
-    write_output(args.output_file, result)
+    cms = ContentModerationSystem(db_manager)
+    cms.process(args.input_file, args.output_file)
 
 
 if __name__ == "__main__":
-    initialize_db()
     main()
