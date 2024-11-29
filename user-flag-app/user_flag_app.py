@@ -121,7 +121,7 @@ class ContentModerationSystem:
     def __init__(self, db_manager):
         self.db_manager = db_manager
 
-    def get_input(self, file):
+    def _get_input(self, file):
         """Read input data from a CSV file as a generator.
 
         Arguments:
@@ -146,7 +146,7 @@ class ContentModerationSystem:
             print(f"Error reading the input file {file}: {e}")
             raise SystemExit(1)
 
-    def query_service(self, message, url):
+    def _query_service(self, message, url):
         """
         Send a message to the translation or scoring API and return the response.
 
@@ -167,7 +167,7 @@ class ContentModerationSystem:
             print(f"Error querying the service {url}: {e}")
             return None
 
-    def process_message(self, row):
+    def _process_message(self, row):
         """
         Process each message row by translating, scoring, and storing.
 
@@ -178,15 +178,15 @@ class ContentModerationSystem:
             None
         """
         user_id = int(row['user_id'])
-        translated_data = self.query_service(row['message'], TRANSLATION_SERVICE_URL)
+        translated_data = self._query_service(row['message'], TRANSLATION_SERVICE_URL)
         translated_message = translated_data.get('translated_message', '')
 
-        score_data = self.query_service(translated_message, SCORING_SERVICE_URL)
+        score_data = self._query_service(translated_message, SCORING_SERVICE_URL)
         score = score_data.get('score', 0.0)
 
         self.db_manager.store_user_activity(user_id, translated_message, score)
 
-    def write_output(self, file, data):
+    def _write_output(self, file, data):
         """
         Write the processed data to a CSV file.
 
@@ -226,10 +226,10 @@ class ContentModerationSystem:
         Returns:
             None
         """
-        for row in self.get_input(input_file):
-            self.process_message(row)
+        for row in self._get_input(input_file):
+            self._process_message(row)
         result = self.db_manager.generate_user_statistics()
-        self.write_output(output_file, result)
+        self._write_output(output_file, result)
 
 
 def get_arguments():
