@@ -96,7 +96,7 @@ def get_arguments():
 
 
 def get_input(file):
-    """Read input data from a CSV file.
+    """Read input data from a CSV file as a generator.
 
     Example:
         [
@@ -105,18 +105,16 @@ def get_input(file):
             {'user_id': '73829111', 'message': 'Completely bonkers!'}
         ]
     """
-    data = []
     try:
         with open(file, 'r', encoding='utf-8') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             for row in csv_reader:
-                data.append(row)
+                yield row
     except IOError as e:
         print(f"Error reading the input file {file}: {e}")
         raise SystemExit(1)
     except Exception as e:
         print(e)
-    return data
 
 
 def query_translation_service(message):
