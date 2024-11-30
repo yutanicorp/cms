@@ -9,6 +9,11 @@ services:
     command: python api_translation.py
     ports:
       - "7000:7000"
+    volumes:
+      - type: bind
+        read_only: false
+        source: ./api-translation
+        target: /api-translation
     stop_grace_period: 2s
 
   api-scoring-service:
@@ -19,6 +24,11 @@ services:
     command: python api_scoring.py
     ports:
       - "8000:8000"
+    volumes:
+      - type: bind
+        read_only: false
+        source: ./api-scoring
+        target: /api-scoring
     stop_grace_period: 2s
 
   user-flag-app-service:
