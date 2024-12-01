@@ -59,6 +59,7 @@ HOST = ''
 class RequestHandler(BaseHTTPRequestHandler):
     """Handles HTTP POST requests to the server."""
 
+    # pylint: disable=invalid-name
     def do_POST(self):
         """Handle POST request method.
 
@@ -85,6 +86,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             response = {'translated_message': translated_text}
             self.wfile.write(json.dumps(response).encode())
 
+        # pylint: disable=broad-exception-caught
         except Exception as e:
             self.send_response(400)
             self.send_header('Content-type', 'application/json')

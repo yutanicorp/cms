@@ -64,7 +64,8 @@ __status__ = '''Development'''  # "Prototype", "Development", "Production".
 class MissingFileArgumentError(Exception):
     """Exception raised for missing input or output file arguments."""
 
-    def __init__(self, message="Not enough file arguments provided. Both input and output files are required."):
+    def __init__(self, message="Not enough file arguments provided. "
+                               "Both input and output files are required."):
         self.message = message
         super().__init__(self.message)
 
@@ -78,7 +79,9 @@ def get_arguments():
     """
     # https://docs.python.org/3/library/argparse.html
     parser = argparse.ArgumentParser(
-        description='''Content Moderation System (CMS) - The system scores comments to report users posting offensive content.''')
+        description=(
+                        "Content Moderation System (CMS) - "
+                        "The system scores comments to report users posting offensive content."))
     parser.add_argument('--input-file',
                         '-I',
                         help='The location of the input file',
@@ -95,6 +98,7 @@ def get_arguments():
 
 
 class DatabaseManager:
+    """Handles SQLite database operations for user activity management."""
 
     def __init__(self, db_path):
         self.db_path = db_path
@@ -144,7 +148,8 @@ class DatabaseManager:
                     VALUES (?, ?, ?)
                 ''', (user_id, translated_message, calculated_score))
                 conn.commit()
-            self._logger.debug(f"Stored activity for user_id: {user_id}, score: {calculated_score}.")
+            self._logger.debug(f"Stored activity for user_id: {user_id}, "
+                               f"score: {calculated_score}.")
         except sqlite3.DatabaseError as e:
             self._logger.error(f"Database error occurred: {e}")
             raise
@@ -174,7 +179,10 @@ class DatabaseManager:
             raise
 
 
+# pylint: disable=too-few-public-methods
 class ContentModerationSystem:
+    """A system for moderating content by translating, scoring, and generating a report."""
+
     def __init__(self, db_manager):
         self.db_manager = db_manager
         self._logger = logging.getLogger(f'{LOGGER_BASENAME}.{self.__class__.__name__}')
@@ -198,8 +206,7 @@ class ContentModerationSystem:
         try:
             with open(file, 'r', encoding='utf-8') as csv_file:
                 csv_reader = csv.DictReader(csv_file)
-                for row in csv_reader:
-                    yield row
+                yield from csv_reader
                 self._logger.debug(f"Finished reading the input file: {file}")
         except IOError as e:
             self._logger.error(f"Error reading the input file {file}: {e}")
@@ -208,7 +215,7 @@ class ContentModerationSystem:
             self._logger.error(f"Error reading the input file {file}: {e}")
             raise
 
-    def _query_service(self, message, url):
+    def _query_service(self, message, url, timeout=5):
         """
         Send a message to the translation or scoring API and return the response.
 
@@ -223,7 +230,7 @@ class ContentModerationSystem:
         payload = {"message": message}
         headers = {"Content-Type": "application/json"}
         try:
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(url, json=payload, headers=headers, timeout=timeout)
             self._logger.debug(f"Received response: {response} from {url}")
             return response.json()
         except requests.RequestException as e:
