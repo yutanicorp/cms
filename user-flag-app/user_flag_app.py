@@ -61,6 +61,14 @@ __email__ = '''<account@single.blue>'''
 __status__ = '''Development'''  # "Prototype", "Development", "Production".
 
 
+class MissingFileArgumentError(Exception):
+    """Exception raised for missing input or output file arguments."""
+
+    def __init__(self, message="Not enough file arguments provided. Both input and output files are required."):
+        self.message = message
+        super().__init__(self.message)
+
+
 def get_arguments():
     """
     Parse and return the command-line arguments for the script.
@@ -114,7 +122,7 @@ class DatabaseManager:
                 conn.commit()
         except sqlite3.DatabaseError as e:
             self._logger.error(f"Database error occurred: {e}")
-            raise SystemExit(1)
+            raise
 
     def store_user_activity(self, user_id, translated_message, calculated_score):
         """
@@ -139,7 +147,7 @@ class DatabaseManager:
             self._logger.debug(f"Stored activity for user_id: {user_id}, score: {calculated_score}.")
         except sqlite3.DatabaseError as e:
             self._logger.error(f"Database error occurred: {e}")
-            raise SystemExit(1)
+            raise
 
     def generate_user_statistics(self):
         """Generate user statistics from the database.
@@ -163,7 +171,7 @@ class DatabaseManager:
                 return cursor.fetchall()
         except sqlite3.DatabaseError as e:
             self._logger.error(f"Database error occurred: {e}")
-            raise SystemExit(1)
+            raise
 
 
 class ContentModerationSystem:
@@ -195,7 +203,10 @@ class ContentModerationSystem:
                 self._logger.debug(f"Finished reading the input file: {file}")
         except IOError as e:
             self._logger.error(f"Error reading the input file {file}: {e}")
-            raise SystemExit(1)
+            raise
+        except TypeError as e:
+            self._logger.error(f"Error reading the input file {file}: {e}")
+            raise
 
     def _query_service(self, message, url):
         """
@@ -217,7 +228,7 @@ class ContentModerationSystem:
             return response.json()
         except requests.RequestException as e:
             self._logger.error(f"Error querying the service {url}: {e}")
-            raise SystemExit(1)
+            raise
 
     def _process_message(self, row):
         """
@@ -274,7 +285,7 @@ class ContentModerationSystem:
                               f"Total records: {len(converted_data)}.")
         except IOError as e:
             self._logger.error(f"Error writing to output file {file}: {e}")
-            raise SystemExit(1)
+            raise
 
     def process(self, input_file, output_file):
         """
@@ -288,6 +299,8 @@ class ContentModerationSystem:
             None
         """
         self._logger.info(f"Starting to process the input file {input_file}.")
+        if not input_file or not output_file:
+            raise MissingFileArgumentError()
         for row in self._get_input(input_file):
             self._process_message(row)
         result = self.db_manager.generate_user_statistics()
@@ -303,21 +316,16 @@ def main():
     stores the results, performs analytics, and writes the output to a file.
     """
     try:
-        args = get_arguments()
-        missing_file_args = [
-            not args.input_file,
-            not args.output_file,
-        ]
-        if any(missing_file_args):
-            raise SystemExit(1)
+        args_input_file = get_arguments().input_file
+        args_output_file = get_arguments().output_file
 
         db_manager = DatabaseManager(DB_PATH)
         db_manager.initialize()
 
         cms = ContentModerationSystem(db_manager)
-        cms.process(args.input_file, args.output_file)
+        cms.process(args_input_file, args_output_file)
     except Exception as e:
-        LOGGER.error(f"An unknown error occurred: {e}")
+        LOGGER.error(e)
         raise SystemExit(1)
 
 
