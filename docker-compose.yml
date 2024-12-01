@@ -51,6 +51,10 @@ services:
       - type: volume
         source: sqlite3
         target: /sqlite
+      - type: bind
+        read_only: false
+        source: ./user-flag-app
+        target: /user-flag-app
     depends_on:
       - api-scoring-service
       - api-translation-service
