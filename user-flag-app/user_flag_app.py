@@ -241,20 +241,32 @@ class ContentModerationSystem:
             None
         """
         user_id = int(row['user_id'])
+        message = row['message']
+        try:
+            # Translating the message
+            translated_data = self._query_service(message, TRANSLATION_SERVICE_URL)
+            translated_message = translated_data.get('translated_message', '')
+            self._logger.debug(f"Successfully translated message for user_id: {user_id}")
+        except Exception as e:
+            self._logger.error(f"Error translation the message {message}: {e}")
+            raise
 
-        # Translating the message
-        translated_data = self._query_service(row['message'], TRANSLATION_SERVICE_URL)
-        translated_message = translated_data.get('translated_message', '')
-        self._logger.debug(f"Successfully translated message for user_id: {user_id}")
+        try:
+            # Scoring the translated message
+            score_data = self._query_service(translated_message, SCORING_SERVICE_URL)
+            score = score_data.get('score', 0.0)
+            self._logger.debug(f"Calculated score for user_id: {user_id} is {score}")
+        except Exception as e:
+            self._logger.error(f"Error scoring the message {message}: {e}")
+            raise
 
-        # Scoring the translated message
-        score_data = self._query_service(translated_message, SCORING_SERVICE_URL)
-        score = score_data.get('score', 0.0)
-        self._logger.debug(f"Calculated score for user_id: {user_id} is {score}")
-
-        # Storing the user activity
-        self.db_manager.store_user_activity(user_id, translated_message, score)
-        self._logger.debug(f"Activity stored for user_id: {user_id}")
+        try:
+            # Storing the user activity
+            self.db_manager.store_user_activity(user_id, translated_message, score)
+            self._logger.debug(f"Activity stored for user_id: {user_id}")
+        except Exception as e:
+            self._logger.error(f"Error storing the message {message} and scoring {score}: {e}")
+            raise
 
     def _write_output(self, file, data):
         """
