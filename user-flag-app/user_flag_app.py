@@ -25,6 +25,7 @@ import argparse
 import csv
 import logging.config
 import sqlite3
+
 import requests
 
 # Constants for Service URLs
@@ -66,6 +67,14 @@ class MissingFileArgumentError(Exception):
 
     def __init__(self, message="Not enough file arguments provided. "
                                "Both input and output files are required."):
+        self.message = message
+        super().__init__(self.message)
+
+
+class APIServiceError(Exception):
+    """Exception raised by the service.."""
+
+    def __init__(self, message="Unexpected error."):
         self.message = message
         super().__init__(self.message)
 
@@ -187,6 +196,34 @@ class ContentModerationSystem:
         self.db_manager = db_manager
         self._logger = logging.getLogger(f'{LOGGER_BASENAME}.{self.__class__.__name__}')
 
+    def process(self, input_file, output_file):
+        """
+        Write the processed data to a CSV file.
+
+         Arguments:
+            input_file (str): The file path where the input CSV is located.
+            output_file (str): The file path for the output CSV.
+
+        Returns:
+            None
+        """
+        self._logger.info(f"Starting to process the input file {input_file}.")
+        self._validate_file_paths(input_file, output_file)
+        for row in self._get_input(input_file):
+            user_id = int(row['user_id'])
+            message = row['message']
+            translated_message = self._get_translated_message(user_id, message)
+            score = self._get_score(user_id, translated_message)
+            self._store_activity(user_id, translated_message, score)
+        result = self.db_manager.generate_user_statistics()
+        self._write_output(output_file, result)
+        self._logger.info(f"Process completed successfully. Output written to {output_file}.")
+
+    def _validate_file_paths(self, input_file, output_file):
+        """Validate input and output file paths."""
+        if not input_file or not output_file:
+            raise MissingFileArgumentError()
+
     def _get_input(self, file):
         """Read input data from a CSV file as a generator.
 
@@ -208,10 +245,7 @@ class ContentModerationSystem:
                 csv_reader = csv.DictReader(csv_file)
                 yield from csv_reader
                 self._logger.debug(f"Finished reading the input file: {file}")
-        except IOError as e:
-            self._logger.error(f"Error reading the input file {file}: {e}")
-            raise
-        except TypeError as e:
+        except (IOError, TypeError) as e:
             self._logger.error(f"Error reading the input file {file}: {e}")
             raise
 
@@ -237,42 +271,35 @@ class ContentModerationSystem:
             self._logger.error(f"Error querying the service {url}: {e}")
             raise
 
-    def _process_message(self, row):
-        """
-        Process each message row by translating, scoring, and storing.
+    def _get_translated_message(self, user_id, message):
+        """Translate a user's message."""
+        translated_data = self._query_service(message, TRANSLATION_SERVICE_URL)
+        if 'error' in translated_data:
+            error_message = translated_data['error']
+            self._logger.error(f"Translation service error: {error_message}")
+            raise APIServiceError
+        translated_message = translated_data.get('translated_message', '')
+        self._logger.debug(f"Successfully translated message for user_id: {user_id}")
+        return translated_message
 
-        Arguments:
-            row (dict): A dictionary containing 'user_id' and 'message', as provided in input file.
+    def _get_score(self, user_id, translated_message):
+        """Calculate a score for the translated message."""
+        score_data = self._query_service(translated_message, SCORING_SERVICE_URL)
+        if 'error' in score_data:
+            error_message = score_data['error']
+            self._logger.error(f"Scoring service error: {error_message}")
+            raise APIServiceError
+        score = score_data.get('score', 0.0)
+        self._logger.debug(f"Calculated score for user_id: {user_id} is {score}")
+        return score
 
-        Returns:
-            None
-        """
-        user_id = int(row['user_id'])
-        message = row['message']
+    def _store_activity(self, user_id, translated_message, score):
+        """Storing the user activity."""
         try:
-            # Translating the message
-            translated_data = self._query_service(message, TRANSLATION_SERVICE_URL)
-            translated_message = translated_data.get('translated_message', '')
-            self._logger.debug(f"Successfully translated message for user_id: {user_id}")
-        except Exception as e:
-            self._logger.error(f"Error translation the message {message}: {e}")
-            raise
-
-        try:
-            # Scoring the translated message
-            score_data = self._query_service(translated_message, SCORING_SERVICE_URL)
-            score = score_data.get('score', 0.0)
-            self._logger.debug(f"Calculated score for user_id: {user_id} is {score}")
-        except Exception as e:
-            self._logger.error(f"Error scoring the message {message}: {e}")
-            raise
-
-        try:
-            # Storing the user activity
             self.db_manager.store_user_activity(user_id, translated_message, score)
             self._logger.debug(f"Activity stored for user_id: {user_id}")
         except Exception as e:
-            self._logger.error(f"Error storing the message {message} and scoring {score}: {e}")
+            self._logger.error(f"Error storing the message {translated_message} and scoring {score}: {e}")
             raise
 
     def _write_output(self, file, data):
@@ -305,26 +332,6 @@ class ContentModerationSystem:
         except IOError as e:
             self._logger.error(f"Error writing to output file {file}: {e}")
             raise
-
-    def process(self, input_file, output_file):
-        """
-        Write the processed data to a CSV file.
-
-         Arguments:
-            input_file (str): The file path where the input CSV is located.
-            output_file (str): The file path for the output CSV.
-
-        Returns:
-            None
-        """
-        self._logger.info(f"Starting to process the input file {input_file}.")
-        if not input_file or not output_file:
-            raise MissingFileArgumentError()
-        for row in self._get_input(input_file):
-            self._process_message(row)
-        result = self.db_manager.generate_user_statistics()
-        self._write_output(output_file, result)
-        self._logger.info(f"Process completed successfully. Output written to {output_file}.")
 
 
 def main():
