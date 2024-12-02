@@ -299,7 +299,7 @@ class ContentModerationSystem:
             self.db_manager.store_user_activity(user_id, translated_message, score)
             self._logger.debug(f"Activity stored for user_id: {user_id}")
         except Exception as e:
-            self._logger.error(f"Error storing the message {translated_message} and scoring {score}: {e}")
+            self._logger.error(f"Error storing activity for user_id: {user_id}: {e}")
             raise
 
     def _write_output(self, file, data):
@@ -352,7 +352,7 @@ def main():
         cms.process(args_input_file, args_output_file)
     except Exception as e:
         LOGGER.error(e)
-        raise SystemExit(1)
+        raise SystemExit(1) from e
 
 
 if __name__ == "__main__":
