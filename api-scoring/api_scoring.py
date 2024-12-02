@@ -21,11 +21,11 @@
 #  DEALINGS IN THE SOFTWARE.
 #
 
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import logging.config
 import random
 import time
-import logging.config
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
@@ -61,7 +61,11 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     # pylint: disable=invalid-name
     def do_POST(self):
-        """Handle the POST request."""
+        """Handle the POST request.
+
+        Returns:
+            {'score': 0.18186417916501396}
+        """
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
 

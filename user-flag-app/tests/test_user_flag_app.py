@@ -1,10 +1,12 @@
-import os
 import csv
-import pytest
+import os
 import tempfile
 from io import StringIO
-from user_flag_app import DatabaseManager, ContentModerationSystem, MissingFileArgumentError
 
+import pytest
+
+from user_flag_app import (ContentModerationSystem, DatabaseManager,
+                           MissingFileArgumentError)
 
 # Constants
 DB_PATH = 'test_database.sqlite3'

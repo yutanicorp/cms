@@ -21,11 +21,11 @@
 #  DEALINGS IN THE SOFTWARE.
 #
 
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import time
-import random
 import logging.config
+import random
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
@@ -61,7 +61,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     # pylint: disable=invalid-name
     def do_POST(self):
-        """Handle POST request method.
+        """Handle the POST request.
 
         Returns:
             {'translated_message': 'This looks like a delicious cake!'}
@@ -71,13 +71,13 @@ class RequestHandler(BaseHTTPRequestHandler):
 
         try:
             data = json.loads(post_data)
-            text = data.get('message', '')
+            message = data.get('message', '')
 
             # Simulate network latency
             latency = random.uniform(0.05, 0.2)
             time.sleep(latency)
 
-            translated_text = translate_text(text)
+            translated_text = translate_text(message)
 
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
